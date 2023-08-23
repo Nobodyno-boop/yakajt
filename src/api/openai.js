@@ -8,7 +8,7 @@ export const openai = () => {
 		summarizeArticle: async (url) => {
 			return client.createCompletion({
 				model: 'text-davinci-003',
-				prompt:`Fait moi un résumé court et percutant de cet article ${url} ⚽ pour l'affichage à l'écran.`,
+				prompt:`Fait moi un résumé court et percutant de cet article ${url} ⚽ pour l'affichage à l'écran. Nous sommes en 2023`,
 				temperature: 0.7,
 				max_tokens: 120,
 				top_p: 1,

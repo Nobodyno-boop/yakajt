@@ -9,11 +9,13 @@ import fs from "fs";
 import { Blob } from 'buffer';
 import { exec } from 'node:child_process';
 import path from "path";
-import Tiny from "tiny"
+import Database from 'better-sqlite3';
+import {google} from 'googleapis';
+
+
 dotenv.config({path: '../.env'})
 
 const rss = "https://dwh.lequipe.fr/api/edito/rss?path=/Football/"
-
 
 
 
@@ -72,42 +74,32 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	// Feed RSS
 	const feed = await getFeed(rss)
 	let feedTry = 0
-	let news = feed.first()
-	Tiny('foolball.tiny', (err, db) => {
-		if (err) {
-			console.log(err)
+	console.log("ea")
+
+	const db = new Database('feeds.db')
+	await db.exec('CREATE TABLE IF NOT EXISTS feeds (url TEXT)')
+
+	const getNews = async (news) => {
+		if(feedTry >= 10){
+			console.log("Cannot found a new news")
+			process.exit(0)
+			return
+		}
+		console.log(`(${feedTry+1})Attempt to get new news`)
+		const currentNews = news ? news : feed.items[0]
+		const old = db.prepare('SELECT url FROM feeds WHERE url = ?').get( currentNews.link)
+		if(!old){
+			db.prepare('INSERT INTO feeds VALUES (?)').run(currentNews.link)
+			return currentNews
+		} else {
+			feedTry++
+            return getNews(feed.items[feedTry])
 		}
 
-		const ff = () => {
-			console.log(news.link)
-			db.find({url: news.link}, (err, data) => {
-				if(data.length === 0) {
-					db.set(nanoid(), {
-						url: news.link
-					})
-					console.log("Feed save")
-				} else {
-					if(feedTry <= 5) {
-						feedTry++
-						console.log("Try feed ", feedTry)
-						news = feed.items[feedTry]
-						ff()
-					} else {
-						process.exit(0)
-					}
-				}
-			})
-		}
+	}
 
-		ff()
-		db.close((err) => {
-			if(err){
-				console.log(err)
-			}
-			console.log("db closed")
-		})
-	})
-
+	const news = await getNews()
+	// const news = feed.items[0]
 
 	const thumbnailUrl = news.enclosure.url
 	await downloadFile(thumbnailUrl, './img', 'img.jpg')
@@ -289,7 +281,53 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	}
 
 	// await editly(config)
-	//
+
+
+	const youtubeUpload = async (filePath, description) => {
+		// Votre fichier client_secret.json que vous obtenez de Google Cloud Console
+
+		const oauth2Client = new google.auth.OAuth2(
+			process.env.YOUTUBE_ID,
+			process.env.YOUTUBE_SECRET,
+			'',
+
+		);
+
+		oauth2Client.setCredentials({
+			refresh_token: process.env.YOUTUBE_REFRESH_SECRET,
+			scope: 'https://www.googleapis.com/auth/youtube.upload'
+		});
+
+		const youtube = google.youtube({
+			version: 'v3',
+			auth: oauth2Client
+		});
+
+		const res = await youtube.search.list({part: ['caca']})
+		console.log(res.data)
+		// const res = await youtube.videos.insert({
+		// 	part: 'id,snippet,status',
+		// 	notifySubscribers: false,
+		// 	requestBody: {
+		// 		snippet: {
+		// 			title: 'Votre titre',  // Mettez votre titre ici
+		// 			description: description
+		// 		},
+		// 		status: {
+		// 			privacyStatus: 'unlisted'  // 'private', 'public', 'unlisted'
+		// 		}
+		// 	},
+		// 	media: {
+		// 		body: fs.createReadStream(filePath)
+		// 	}
+		// });
+
+		// console.log(`Video uploaded with ID: ${res.data.id}`);
+	}
+
+
+	await youtubeUpload("", "aa")
+
 	// exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
 	// 	if(err){
 	// 		console.error(err, stderr);
@@ -299,8 +337,19 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	// 	form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
 	// 	form.append('payload_json', JSON.stringify({content: tiktokDesc}))
 	// 	console.log("Attempting to upload on discord..")
+	//
+	//
 	// 	await axios({
 	// 		url: 'https://discord.com/api/webhooks/1135266790994350173/OnYiQKYDBNqFZb5qL7H2mZAgO3q6oWHsdiE4cVPJ2eXDkhn30WktHCuvyyaiOJ5mMyRt',
+	// 		method: 'POST',
+	// 		data:form,
+	// 		header: {
+	// 			'Content-Type': `multipart/form-data;`
+	// 		}
+	// 	})
+	//
+	// 	await axios({
+	// 		url: 'https://vroum.snood.app/webhook-test/a9395447-7465-43e3-854c-a1981d84316e',
 	// 		method: 'POST',
 	// 		data:form,
 	// 		header: {
