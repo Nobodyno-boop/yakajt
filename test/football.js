@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-import {getFeed, openai} from "../src/index.js";
+import {getFeed, openai, youtube} from "../src/index.js";
 import {downloadFile} from "../src/file.js";
 import editly from 'editly';
 import {glob} from 'glob'
@@ -10,7 +10,6 @@ import { Blob } from 'buffer';
 import { exec } from 'node:child_process';
 import path from "path";
 import Database from 'better-sqlite3';
-import {google} from 'googleapis';
 
 
 dotenv.config({path: '../.env'})
@@ -74,7 +73,6 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	// Feed RSS
 	const feed = await getFeed(rss)
 	let feedTry = 0
-	console.log("ea")
 
 	const db = new Database('feeds.db')
 	await db.exec('CREATE TABLE IF NOT EXISTS feeds (url TEXT)')
@@ -100,15 +98,18 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 
 	const news = await getNews()
 	// const news = feed.items[0]
-
+	const id = nanoid()
 	const thumbnailUrl = news.enclosure.url
-	await downloadFile(thumbnailUrl, './img', 'img.jpg')
+	const imageFilename = `${id}.jpg`
+	await downloadFile(thumbnailUrl, './img', imageFilename)
 
 	// Open AI
 	const openAI = openai()
 	const summery = (await openAI.summarizeArticle(news.link)).data['choices'][0]
 	const tiktokDesc = (await openAI.generateTitle(news.link)).data['choices'][0]['text'].replace(/\s+/g, ' ')
-		.trim();
+		.trim()
+		.slice(0, 97)
+		+ "..."
 	const summeryText = summery['text'].replaceAll('\\n', '').replace(
 		/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g,
 		''
@@ -243,11 +244,26 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 
 	const mp3files = await glob('sound/*.mp3')
 	const mp4files = await glob('video/*')
-	const output = `./outputs/${nanoid()}.mp4`
-	const outputCompress = `./outputs/${nanoid()}.mp4`
+	const output = `./outputs/${id}.mp4`
+	const outputCompress = `./outputs/${id}-compress.mp4`
 
 	const randomAudio = mp3files[Math.floor(Math.random() * mp3files.length)]
 	const randomVideo = mp4files[Math.floor(Math.random() * mp4files.length)]
+	const layers = [
+		{type: 'video', path: randomVideo, resizeMode: 'cover', loop: true},
+		{type: 'fabric', func},
+		{
+			type: 'image-overlay',
+			path: 'img/logo.png',
+			position: {originY: 'top', x: 0.75, y: 0.13},
+			width: 0.2
+		},
+	]
+
+	if(summeryText.length < 320 ){
+		layers.push({type: 'image-overlay', path: `img/${imageFilename}`, position: {originY: 'bottom', y: 0.9}, height: 0.2})
+	}
+
 	const config = {
 		width: 1080,
 		height: 1920,
@@ -262,17 +278,7 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		// verbose: true,
 		clips: [
 			{
-				layers: [
-					{type: 'video', path: randomVideo, resizeMode: 'cover', loop: true},
-					{type: 'fabric', func},
-					{type: 'image-overlay', path: 'img/img.jpg', position: {originY: 'bottom', y: 0.9}, height: 0.2},
-					{
-						type: 'image-overlay',
-						path: 'img/logo.png',
-						position: {originY: 'top', x: 0.75, y: 0.13},
-						width: 0.2
-					},
-				]
+				layers: layers
 			}
 		],
 		audioTracks: [
@@ -280,82 +286,35 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		]
 	}
 
-	// await editly(config)
+	await editly(config)
+
+	const youtubeAPI = youtube()
 
 
-	const youtubeUpload = async (filePath, description) => {
-		// Votre fichier client_secret.json que vous obtenez de Google Cloud Console
+	exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
+		if (err) {
+			console.error(err, stderr);
+		}
+		console.log("Finish compression")
+		let form = new FormData()
+		form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
+		form.append('payload_json', JSON.stringify({content: tiktokDesc}))
+		console.log("Attempting to upload on discord..")
 
-		const oauth2Client = new google.auth.OAuth2(
-			process.env.YOUTUBE_ID,
-			process.env.YOUTUBE_SECRET,
-			'',
+		await axios({
+			url: 'https://discord.com/api/webhooks/1135266790994350173/OnYiQKYDBNqFZb5qL7H2mZAgO3q6oWHsdiE4cVPJ2eXDkhn30WktHCuvyyaiOJ5mMyRt',
+			method: 'POST',
+			data: form,
+			header: {
+				'Content-Type': `multipart/form-data;`
+			}
+		})
+		console.log("Attempting to upload on youtube")
 
-		);
-
-		oauth2Client.setCredentials({
-			refresh_token: process.env.YOUTUBE_REFRESH_SECRET,
-			scope: 'https://www.googleapis.com/auth/youtube.upload'
-		});
-
-		const youtube = google.youtube({
-			version: 'v3',
-			auth: oauth2Client
-		});
-
-		const res = await youtube.search.list({part: ['caca']})
-		console.log(res.data)
-		// const res = await youtube.videos.insert({
-		// 	part: 'id,snippet,status',
-		// 	notifySubscribers: false,
-		// 	requestBody: {
-		// 		snippet: {
-		// 			title: 'Votre titre',  // Mettez votre titre ici
-		// 			description: description
-		// 		},
-		// 		status: {
-		// 			privacyStatus: 'unlisted'  // 'private', 'public', 'unlisted'
-		// 		}
-		// 	},
-		// 	media: {
-		// 		body: fs.createReadStream(filePath)
-		// 	}
-		// });
-
-		// console.log(`Video uploaded with ID: ${res.data.id}`);
-	}
+		const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, 'public')
+		console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
 
 
-	await youtubeUpload("", "aa")
-
-	// exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
-	// 	if(err){
-	// 		console.error(err, stderr);
-	// 	}
-	// 	console.log("Finish compression")
-	// 	let form = new FormData()
-	// 	form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
-	// 	form.append('payload_json', JSON.stringify({content: tiktokDesc}))
-	// 	console.log("Attempting to upload on discord..")
-	//
-	//
-	// 	await axios({
-	// 		url: 'https://discord.com/api/webhooks/1135266790994350173/OnYiQKYDBNqFZb5qL7H2mZAgO3q6oWHsdiE4cVPJ2eXDkhn30WktHCuvyyaiOJ5mMyRt',
-	// 		method: 'POST',
-	// 		data:form,
-	// 		header: {
-	// 			'Content-Type': `multipart/form-data;`
-	// 		}
-	// 	})
-	//
-	// 	await axios({
-	// 		url: 'https://vroum.snood.app/webhook-test/a9395447-7465-43e3-854c-a1981d84316e',
-	// 		method: 'POST',
-	// 		data:form,
-	// 		header: {
-	// 			'Content-Type': `multipart/form-data;`
-	// 		}
-	// 	})
-	// })
+	})
 
 })()
