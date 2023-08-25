@@ -286,44 +286,39 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		]
 	}
 
-	// await editly(config)
+	await editly(config)
 
 	const youtubeAPI = youtube()
 	const metaAPI = meta()
 
-	const fbvideo = await metaAPI.postVideo(path.resolve(process.cwd(), "outputs/JCrGxora2i-vLy87TA1D9.mp4"), tiktokDesc)
-	if(fbvideo){
-		console.log(fbvideo.data)
-	}
+	exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
+		if (err) {
+			console.error(err, stderr);
+		}
+		console.log("Finish compression")
+		let form = new FormData()
+		form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
+		form.append('payload_json', JSON.stringify({content: tiktokDesc}))
+		console.log("Attempting to upload on discord..")
 
-	// exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
-	// 	if (err) {
-	// 		console.error(err, stderr);
-	// 	}
-	// 	console.log("Finish compression")
-	// 	let form = new FormData()
-	// 	form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
-	// 	form.append('payload_json', JSON.stringify({content: tiktokDesc}))
-	// 	console.log("Attempting to upload on discord..")
-	//
-	// 	await axios({
-	// 		url: 'https://discord.com/api/webhooks/1135266790994350173/OnYiQKYDBNqFZb5qL7H2mZAgO3q6oWHsdiE4cVPJ2eXDkhn30WktHCuvyyaiOJ5mMyRt',
-	// 		method: 'POST',
-	// 		data: form,
-	// 		header: {
-	// 			'Content-Type': `multipart/form-data;`
-	// 		}
-	// 	})
-	// 	console.log("Attempting to upload on youtube")
-	//
-	// 	const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, 'public')
-	// 	if(ytvideo){
-	// 		console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
-	// 	}
-	// 	const fbvideo = await facebookAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc)
-	// 	if(fbvideo){
-	// 		console.log(fbvideo)
-	// 	}
-	// })
+		await axios({
+			url: 'https://discord.com/api/webhooks/1135266790994350173/OnYiQKYDBNqFZb5qL7H2mZAgO3q6oWHsdiE4cVPJ2eXDkhn30WktHCuvyyaiOJ5mMyRt',
+			method: 'POST',
+			data: form,
+			header: {
+				'Content-Type': `multipart/form-data;`
+			}
+		})
+		console.log("Attempting to upload on youtube")
+
+		const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, 'public')
+		if(ytvideo){
+			console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
+		}
+		const fbvideo = await metaAPI.postVideoFacebook(path.resolve(process.cwd(), output), tiktokDesc)
+		if(fbvideo){
+			console.log('Reels uploaded !')
+		}
+	})
 
 })()
