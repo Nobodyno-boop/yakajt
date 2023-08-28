@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
-import {facebook, getFeed, meta, openai, youtube} from "../src/index.js";
-import {downloadFile} from "../src/file.js";
+import {getFeed, meta, openai, youtube, file, environment} from "../src/index.js";
 import editly from 'editly';
 import {glob} from 'glob'
 import {nanoid} from 'nanoid'
@@ -10,13 +9,10 @@ import { Blob } from 'buffer';
 import { exec } from 'node:child_process';
 import path from "path";
 import Database from 'better-sqlite3';
+import process from "node:process";
 
-
-dotenv.config({path: '../.env'})
-
+environment()
 const rss = "https://dwh.lequipe.fr/api/edito/rss?path=/Football/"
-
-
 
 
 const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
@@ -74,7 +70,7 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	const feed = await getFeed(rss)
 	let feedTry = 0
 
-	const db = new Database('feeds.db')
+	const db = new Database(path.resolve(`${process.env.FOLDER_ASSETS}/feeds.db`))
 	await db.exec('CREATE TABLE IF NOT EXISTS feeds (url TEXT)')
 
 	const getNews = async (news) => {
@@ -99,9 +95,10 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	const news = await getNews()
 	// const news = feed.items[0]
 	const id = nanoid()
+	const fileAPI = file()
 	const thumbnailUrl = news.enclosure.url
 	const imageFilename = `${id}.jpg`
-	await downloadFile(thumbnailUrl, './img', imageFilename)
+	await fileAPI.downloadFile(thumbnailUrl, `${process.env.FOLDER_ASSETS}/img`, imageFilename)
 
 	// Open AI
 	const openAI = openai()
@@ -242,10 +239,15 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		return {onRender, onClose};
 	}
 
-	const mp3files = await glob('sound/*.mp3')
-	const mp4files = await glob('video/*')
-	const output = `./outputs/${id}.mp4`
-	const outputCompress = `./outputs/${id}-compress.mp4`
+	const assetsRelative = process.env.FOLDER_ASSETS
+		.split(path.sep)
+		.filter(Boolean)
+		.pop()
+
+	const mp3files = await glob(`${assetsRelative}/sound/*.mp3`)
+	const mp4files = await glob(`${assetsRelative}/video/*`)
+	const output = path.resolve(`${assetsRelative}/outputs/${id}.mp4`)
+	const outputCompress = path.resolve(`${assetsRelative}/outputs/${id}-compress.mp4`)
 
 	const randomAudio = mp3files[Math.floor(Math.random() * mp3files.length)]
 	const randomVideo = mp4files[Math.floor(Math.random() * mp4files.length)]
@@ -254,14 +256,19 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		{type: 'fabric', func},
 		{
 			type: 'image-overlay',
-			path: 'img/logo.png',
+			path: path.resolve(`${process.env.FOLDER_ASSETS}/img/logo.png`),
 			position: {originY: 'top', x: 0.75, y: 0.13},
 			width: 0.2
 		},
 	]
 
 	if(summeryText.length < 320 ){
-		layers.push({type: 'image-overlay', path: `img/${imageFilename}`, position: {originY: 'bottom', y: 0.9}, height: 0.2})
+		layers.push({
+			type: 'image-overlay',
+			path: path.resolve(`${process.env.FOLDER_ASSETS}/img/${imageFilename}`),
+			position: {originY: 'bottom', y: 0.9},
+			height: 0.2
+		})
 	}
 
 	const config = {
@@ -271,7 +278,7 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		keepSourceAudio: false,
 		default: {
 			layer: {
-				fontPath: 'font/'
+				fontPath: path.resolve(`${process.env.FOLDER_ASSETS}/img/${imageFilename}`)
 			}
 		},
 		fast: false,
@@ -310,15 +317,20 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 			}
 		})
 		console.log("Attempting to upload on youtube")
+		const keywords = "#football #ligue1 #ligue2 #leaguedeschampions #premierleague #mercato #transfert #championsleague #ligua #seriea #bundesliga #fifa #europaleague"
+		const description =`🔥 Bienvenue sur QuartierFoot! 🔥\n ${keywords} \n Je suis votre source incontournable d'actualités football, apportant les dernières nouvelles du foot directement à vous, générées par l'intelligence artificielle et postées en temps réel. Plongez au cœur de l'action comme jamais auparavant! \n 📲 Suivez-moi aussi sur : \n Instagram : https://www.instagram.com/quartierfoot/ \n Twitter : https://twitter.com/QuartierFoot \n TikTok : https://www.tiktok.com/@quartierfoot  \n \n Restez branchés, et ne manquez jamais une mise à jour du monde passionnant du football! ⚽💥 `
 
-		const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, 'public')
-		if(ytvideo){
-			console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
-		}
-		const fbvideo = await metaAPI.postVideoFacebook(path.resolve(process.cwd(), output), tiktokDesc)
-		if(fbvideo){
-			console.log('Reels uploaded !')
-		}
+		// const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, description,'public')
+		// if(ytvideo){
+		// 	console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
+		// }
+		// const fbvideo = await metaAPI.postVideoFacebook(path.resolve(process.cwd(), output), tiktokDesc)
+		// if(fbvideo){
+		// 	console.log('Reels uploaded !')
+		// }
+		//
+		// console.log("Cleaning job..")
+		fileAPI.cleanup()
 	})
 
 })()

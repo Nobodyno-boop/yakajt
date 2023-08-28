@@ -1,10 +1,3 @@
 node_modules
-.env
 .idea
-test/video/*
-test/sound/*
-test/img/*
-test/font
-test/videos.json
-test/output.mp4
-test/outputs/*
+test/**

@@ -2,27 +2,31 @@ import fs from "fs";
 import path from "path";
 import process from "node:process";
 
-function toBuffer(arrayBuffer) {
-	const buffer = Buffer.alloc(arrayBuffer.byteLength);
-	const view = new Uint8Array(arrayBuffer);
-	for (let i = 0; i < buffer.length; ++i) {
-		buffer[i] = view[i];
+export const file = () => {
+	return {
+		jobFile: [],
+		toBuffer(arrayBuffer) {
+			const buffer = Buffer.alloc(arrayBuffer.byteLength);
+			const view = new Uint8Array(arrayBuffer);
+			for (let i = 0; i < buffer.length; ++i) {
+				buffer[i] = view[i];
+			}
+			return buffer;
+		},
+		async downloadFile (url, folder, filename)  {
+			const file = await fetch(url).then(x => x.arrayBuffer())
+
+			const destinationPath = path.resolve(process.cwd(),folder, filename)
+
+			fs.mkdirSync(path.dirname(destinationPath), { recursive: true })
+
+			fs.writeFileSync(destinationPath, this.toBuffer(file))
+			this.jobFile.push(destinationPath)
+		},
+		cleanup() {
+			this.jobFile.forEach(file => {
+                fs.unlinkSync(file)
+            })
+		}
 	}
-	return buffer;
-}
-
-export const downloadFile = async (url, folder, filename) => {
-	// const file = fs.createWriteS();
-	const file = await fetch(url).then(x => x.arrayBuffer())
-
-	// const file = new File([blob], filename, {type: 'video/mp4'})
-	fs.writeFileSync(path.resolve(process.cwd(),folder, filename), toBuffer(file))
-}
-
-export const isExistFile = async (path) => {
-	try {
-        return fs.existsSync(path)
-    } catch {
-        return false
-    }
 }

@@ -20,7 +20,7 @@ export const youtube = () => {
 
 	return {
 		youtube,
-		async postVideo(filePath,title,videoPrivacy = "private"){
+		async postVideo(filePath,title,description,videoPrivacy = "private"){
 			try {
 				return await this.youtube.videos.insert({
 					part: 'id,snippet,status',
@@ -28,7 +28,7 @@ export const youtube = () => {
 					requestBody: {
 						snippet: {
 							title: title,
-							description: `🔥 Bienvenue sur QuartierFoot! 🔥 \n Je suis votre source incontournable d'actualités football, apportant les dernières nouvelles du foot directement à vous, générées par l'intelligence artificielle et postées en temps réel. Plongez au cœur de l'action comme jamais auparavant! \n 📲 Suivez-moi aussi sur : \n Instagram : https://www.instagram.com/quartierfoot/ \n Twitter : https://twitter.com/QuartierFoot \n TikTok : https://www.tiktok.com/@quartierfoot  \n \n Restez branchés, et ne manquez jamais une mise à jour du monde passionnant du football! ⚽💥 `
+							description: description
 						},
 						status: {
 							privacyStatus: videoPrivacy  // 'private', 'public', 'unlisted'

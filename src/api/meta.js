@@ -42,7 +42,7 @@ export const meta = () => {
                     method: 'POST',
 				})
 			} catch (error) {
-				// console.error('(Facebook) Erreur lors de la publication de la vidéo:', error);
+				console.error('(Facebook) Erreur lors de la publication de la vidéo:', error);
 			}
 		}
 	}
