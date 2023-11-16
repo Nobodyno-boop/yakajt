@@ -10,6 +10,7 @@ import { exec } from 'node:child_process';
 import path from "path";
 import Database from 'better-sqlite3';
 import process from "node:process";
+import {tiktok} from "../src/api/tiktok.js";
 
 environment()
 const rss = "https://dwh.lequipe.fr/api/edito/rss?path=/Football/"
@@ -103,10 +104,12 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	// Open AI
 	const openAI = openai()
 	const summery = (await openAI.summarizeArticle(news.link)).data['choices'][0]
+	console.log(summery)
 	const tiktokDesc = (await openAI.generateTitle(news.link)).data['choices'][0]['text'].replace(/\s+/g, ' ')
 		.trim()
 		.slice(0, 97)
 		+ "..."
+	// Remove all emojis and jump line
 	const summeryText = summery['text'].replaceAll('\\n', '').replace(
 		/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g,
 		''
@@ -188,7 +191,7 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 			})
 
 			const currentMonth = date.getMonth() + 1
-			canvas.add(new fabric.Text(`Infos du ${date.getDate()}/${currentMonth > 9 ? "0"+currentMonth : currentMonth}`, {
+			canvas.add(new fabric.Text(`Infos du ${date.getDate()}/${currentMonth > 9 ? currentMonth : `0${currentMonth}`}`, {
 				originX: 'center',
 				originY: 'top',
 				left: width / 2,
@@ -285,26 +288,29 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		// verbose: true,
 		clips: [
 			{
-				layers: layers
+				layers: layers,
+				duration: 10,
 			}
 		],
 		audioTracks: [
 			{path: randomAudio}
 		]
 	}
-
+	console.time("create video")
 	await editly(config)
+	console.timeEnd("create video")
 
 	const youtubeAPI = youtube()
 	const metaAPI = meta()
+	// const tiktokAPI = tiktok()
 
 	exec(`ffmpeg -i ${output} -vcodec h264 -acodec mp2 ${outputCompress}`, async (err, stdout, stderr) => {
 		if (err) {
 			console.error(err, stderr);
 		}
-		console.log("Finish compression")
+		const videoPathCompress = path.resolve(process.cwd(), outputCompress)
 		let form = new FormData()
-		form.append('file', new Blob([fs.readFileSync(path.resolve(process.cwd(), outputCompress))]), 'lucienLeRoiWesternUnion.mp4')
+		form.append('file', new Blob([fs.readFileSync(videoPathCompress)]), 'lucienLeRoiWesternUnion.mp4')
 		form.append('payload_json', JSON.stringify({content: tiktokDesc}))
 		console.log("Attempting to upload on discord..")
 
@@ -320,17 +326,24 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		const keywords = "#football #ligue1 #ligue2 #leaguedeschampions #premierleague #mercato #transfert #championsleague #ligua #seriea #bundesliga #fifa #europaleague"
 		const description =`🔥 Bienvenue sur QuartierFoot! 🔥\n ${keywords} \n Je suis votre source incontournable d'actualités football, apportant les dernières nouvelles du foot directement à vous, générées par l'intelligence artificielle et postées en temps réel. Plongez au cœur de l'action comme jamais auparavant! \n 📲 Suivez-moi aussi sur : \n Instagram : https://www.instagram.com/quartierfoot/ \n Twitter : https://twitter.com/QuartierFoot \n TikTok : https://www.tiktok.com/@quartierfoot  \n \n Restez branchés, et ne manquez jamais une mise à jour du monde passionnant du football! ⚽💥 `
 
-		// const ytvideo = await youtubeAPI.postVideo(path.resolve(process.cwd(), output), tiktokDesc, description,'public')
-		// if(ytvideo){
-		// 	console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
-		// }
-		// const fbvideo = await metaAPI.postVideoFacebook(path.resolve(process.cwd(), output), tiktokDesc)
-		// if(fbvideo){
-		// 	console.log('Reels uploaded !')
-		// }
-		//
-		// console.log("Cleaning job..")
+		const ytvideo = await youtubeAPI.postVideo(videoPathCompress, tiktokDesc, description,'public')
+		if(ytvideo){
+			console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
+		}
+		const fbvideo = await metaAPI.postVideoFacebook(videoPathCompress, tiktokDesc)
+		if(fbvideo){
+			console.log('Reels uploaded !')
+		}
+		// console.log("Attempting to upload on tiktok")
+		// console.time("upload on tiktok")
+		// const tiktokVideo = await tiktokAPI.createPost(outputCompress, tiktokDesc)
+		// await tiktokAPI.uploadVideo(tiktokVideo, outputCompress)
+		// console.timeEnd("upload on tiktok")
+		fileAPI.jobFile.push(outputCompress, output)
+		console.log("Cleaning job..")
+		console.time("cleanup")
 		fileAPI.cleanup()
+		console.timeEnd("cleanup")
 	})
 
 })()
