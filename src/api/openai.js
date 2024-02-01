@@ -8,7 +8,7 @@ export const openai = () => {
 		summarizeArticle: async (url) => {
 			return client.createCompletion({
 				model: 'gpt-3.5-turbo-instruct',
-				prompt:`Résumez de manière concise et dynamique l'article ${url}. Destiné à un affichage bref à l'écran, le texte doit captiver l'audience et transmettre l'essence de l'événement. Nous sommes en 2023 \n`,
+				prompt:`Résumez de manière concise et dynamique l'article ${url} en français. Destiné à un affichage bref à l'écran, le texte doit captiver l'audience et transmettre l'essence de l'événement. Nous sommes en 2023 \n`,
 				temperature: 0.9,
 				max_tokens: 150,
 				top_p: 1,
@@ -19,7 +19,7 @@ export const openai = () => {
 		},
 		async generateTitle(url){
 			return client.createCompletion({
-                model: 'text-davinci-003',
+                model: 'gpt-3.5-turbo-instruct',
                 prompt:`En 50 caractères moi un résumé de cet article : ${url} inclus des #.`,
                 temperature: 0.7,
                 max_tokens: 120,
