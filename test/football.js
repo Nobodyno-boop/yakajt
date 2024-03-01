@@ -5,15 +5,17 @@ import {glob} from 'glob'
 import {nanoid} from 'nanoid'
 import axios from "axios";
 import fs from "fs";
-import { Blob } from 'buffer';
-import { exec } from 'node:child_process';
+import {Blob} from 'buffer';
+import {exec} from 'node:child_process';
 import path from "path";
 import Database from 'better-sqlite3';
 import process from "node:process";
 import {tiktok} from "../src/api/tiktok.js";
+import {config} from "../src/template/v1.js";
 
 environment()
-const rss = "https://dwh.lequipe.fr/api/edito/rss?path=/Football/"
+// const rss = "https://dwh.lequipe.fr/api/edito/rss?path=/Football/"
+const rss = "https://n4g.com/rss/news?channel=&sort=latest"
 
 
 const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
@@ -75,20 +77,20 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	await db.exec('CREATE TABLE IF NOT EXISTS feeds (url TEXT)')
 
 	const getNews = async (news) => {
-		if(feedTry >= 10){
+		if (feedTry >= 10) {
 			console.log("Cannot found a new news")
 			process.exit(0)
 			return
 		}
-		console.log(`(${feedTry+1})Attempt to get new news`)
+		console.log(`(${feedTry + 1})Attempt to get new news`)
 		const currentNews = news ? news : feed.items[0]
-		const old = db.prepare('SELECT url FROM feeds WHERE url = ?').get( currentNews.link)
-		if(!old){
+		const old = db.prepare('SELECT url FROM feeds WHERE url = ?').get(currentNews.link)
+		if (!old) {
 			db.prepare('INSERT INTO feeds VALUES (?)').run(currentNews.link)
 			return currentNews
 		} else {
 			feedTry++
-            return getNews(feed.items[feedTry])
+			return getNews(feed.items[feedTry])
 		}
 
 	}
@@ -106,8 +108,8 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	const summery = (await openAI.summarizeArticle(news.link)).data['choices'][0]
 	console.log(summery)
 	const tiktokDesc = (await openAI.generateTitle(news.link)).data['choices'][0]['text'].replace(/\s+/g, ' ')
-		.trim()
-		.slice(0, 97)
+			.trim()
+			.slice(0, 97)
 		+ "..."
 	// Remove all emojis and jump line
 	const summeryText = summery['text'].replaceAll('\\n', '').replace(
@@ -121,183 +123,41 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 	const date = new Date()
 	const textColor = "white"
 	const sourceSites = ["L'équipe", 'ActuFoot', 'ParisMatch', 'Eurosports', 'Le10sport', 'MadeinFoot', 'football365', 'footMercato', 'foot01', 'sports.fr', '90min']
-	const source = sourceSites[Math.floor(Math.random() * sourceSites.length)]
 
-	const func = async function func({width, height, fabric}) {
-		async function onRender(progress, canvas) {
-			canvas.add(new fabric.Rect({
-				width: 1100,
-				height: 1920 / 6,
-				fill: 'black',
-				originY: 'top',
-				left: -10
-			}))
-			// top line
-			canvas.add(new fabric.Line([0, 290, 1100, 290], {
-				stroke: 'white',
-				strokeWidth: 15,
-				fill: 'white'
-			}))
-			// bottom line
-			canvas.add(new fabric.Line([0, 320, 1100, 320], {
-				stroke: 'white',
-				strokeWidth: 15,
-				fill: 'white'
-			}))
-
-
-			const lines = wrapText(canvas.getContext('2d'), summeryText, 540, 420, 540 / 3.8, 65)
-			lines.forEach((line) => {
-				const [text, x, y] = line
-				const ctext = new fabric.Text(text, {
-					originX: 'center',
-					originY: 'top',
-					left: x,
-					top: y,
-					fontSize: 60,
-					hasBorder: true,
-					strokeWidth: 1,
-					fontWeight: 'bold',
-					// backgroundColor: backgroundColor,
-					padding: 5,
-					cornerStyle: "circle",
-					// stroke: 'black',
-					fontFamily: 'Georgia',
-					textAlign: 'center',
-					fill: textColor
-				})
-				const textHeight = Math.floor(ctext.lineHeight * ctext.fontSize)
-				let rectPadding = new fabric.Rect({
-					originX: 'center',
-					originY: 'top',
-					width: ctext.width + (6 + 6),
-					height: textHeight + (2 + 2),
-					left: x - 8,
-					top: y,
-					fill: '#000000ff',
-					rx: 10,
-					ry: 10,
-				})
-
-				var group = new fabric.Group([rectPadding, ctext], {
-					originX: 'center',
-					originY: 'top',
-					left: x - 6,
-					top: y + 10,
-					angle: 0,
-				});
-				canvas.add(group);
-
-			})
-
-			const currentMonth = date.getMonth() + 1
-			canvas.add(new fabric.Text(`Infos du ${date.getDate()}/${currentMonth > 9 ? currentMonth : `0${currentMonth}`}`, {
-				originX: 'center',
-				originY: 'top',
-				left: width / 2,
-				top: 110,
-				fontSize: 100,
-				fontWeight: 'bold',
-				fontFamily: 'Georgia',
-				textAlign: 'center',
-				fill: 'black',
-				stroke: 'white',
-				strokeWidth: 10,
-				paintFirst: 'stroke',
-			}));
-
-			canvas.add(new fabric.Text(`${date.getHours()}:${date.getMinutes() > 9 ? date.getMinutes() : "0" + date.getMinutes()}`, {
-				originX: 'center',
-				originY: 'top',
-				left: width / 2,
-				top: 200,
-				fontSize: 60,
-				fontWeight: 'bold',
-				stroke: 'white',
-				strokeWidth: 10,
-				paintFirst: 'stroke',
-				fontFamily: 'Georgia',
-				textAlign: 'center',
-				fill: 'red'
-			}));
-
-			canvas.add(new fabric.Text(`Source: ${source}`, {
-				originX: 'center',
-				originY: 'top',
-				left: 1080 / 2,
-				top: height / 1.1,
-				fontSize: 60,
-				strokeWidth: 1,
-				fontWeight: 'bold',
-				fontFamily: 'Georgia',
-				textAlign: 'center',
-				fill: 'white'
-			}));
-		}
-
-		function onClose() {
-			// Cleanup if you initialized anything
-		}
-
-		return {onRender, onClose};
-	}
 
 	const assetsRelative = process.env.FOLDER_ASSETS
 		.split(path.sep)
 		.filter(Boolean)
 		.pop()
 
-	const mp3files = await glob(`${assetsRelative}/sound/*.mp3`)
-	const mp4files = await glob(`${assetsRelative}/video/*`)
-	const output = path.resolve(`${assetsRelative}/outputs/${id}.mp4`)
-	const outputCompress = path.resolve(`${assetsRelative}/outputs/${id}-compress.mp4`)
-
-	const randomAudio = mp3files[Math.floor(Math.random() * mp3files.length)]
-	const randomVideo = mp4files[Math.floor(Math.random() * mp4files.length)]
-	const layers = [
-		{type: 'video', path: randomVideo, resizeMode: 'cover', loop: true},
-		{type: 'fabric', func},
-		{
-			type: 'image-overlay',
-			path: path.resolve(`${process.env.FOLDER_ASSETS}/img/logo.png`),
-			position: {originY: 'top', x: 0.75, y: 0.13},
-			width: 0.2
-		},
-	]
-
-	if(summeryText.length < 320 ){
-		layers.push({
-			type: 'image-overlay',
-			path: path.resolve(`${process.env.FOLDER_ASSETS}/img/${imageFilename}`),
-			position: {originY: 'bottom', y: 0.9},
-			height: 0.2
+	const [mp3files, mp4files] = ["/sound/*.mp3", '/video/*'].map(
+		async (path) => {
+			const values = await glob(`${assetsRelative}${path}`)
+			return values
 		})
-	}
 
-	const config = {
-		width: 1080,
-		height: 1920,
-		outPath: output,
-		keepSourceAudio: false,
-		default: {
-			layer: {
-				fontPath: path.resolve(`${process.env.FOLDER_ASSETS}/img/${imageFilename}`)
-			}
-		},
-		fast: false,
-		// verbose: true,
-		clips: [
-			{
-				layers: layers,
-				duration: 10,
-			}
-		],
-		audioTracks: [
-			{path: randomAudio}
-		]
-	}
+	const [output,outputCompress] = ['', '-compress'].map(async (suffix) => {
+		return path.resolve(`${assetsRelative}/outputs/${id}${suffix}.mp4`)
+	})
+
+	const [randomAudio, randomVideo, source] = [mp3files, mp4files, sourceSites].map(arr => {
+		return arr[Math.floor(Math.random() * arr.length)]
+	})
+
+
+
+
 	console.time("create video")
-	await editly(config)
+	await editly(config(
+		{
+			video: randomVideo,
+			logo: `${assetsRelative}/img/logo.png`,
+			image: imageFilename,
+			summeryText,
+			output,
+			audio: randomAudio
+		}
+	))
 	console.timeEnd("create video")
 
 	const youtubeAPI = youtube()
@@ -322,18 +182,18 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 				'Content-Type': `multipart/form-data;`
 			}
 		})
-		console.log("Attempting to upload on youtube")
-		const keywords = "#football #ligue1 #ligue2 #leaguedeschampions #premierleague #mercato #transfert #championsleague #ligua #seriea #bundesliga #fifa #europaleague"
-		const description =`🔥 Bienvenue sur QuartierFoot! 🔥\n ${keywords} \n Je suis votre source incontournable d'actualités football, apportant les dernières nouvelles du foot directement à vous, générées par l'intelligence artificielle et postées en temps réel. Plongez au cœur de l'action comme jamais auparavant! \n 📲 Suivez-moi aussi sur : \n Instagram : https://www.instagram.com/quartierfoot/ \n Twitter : https://twitter.com/QuartierFoot \n TikTok : https://www.tiktok.com/@quartierfoot  \n \n Restez branchés, et ne manquez jamais une mise à jour du monde passionnant du football! ⚽💥 `
-
-		const ytvideo = await youtubeAPI.postVideo(videoPathCompress, tiktokDesc, description,'public')
-		if(ytvideo){
-			console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
-		}
-		const fbvideo = await metaAPI.postVideoFacebook(videoPathCompress, tiktokDesc)
-		if(fbvideo){
-			console.log('Reels uploaded !')
-		}
+		// console.log("Attempting to upload on youtube")
+		// const keywords = "#football #ligue1 #ligue2 #leaguedeschampions #premierleague #mercato #transfert #championsleague #ligua #seriea #bundesliga #fifa #europaleague"
+		// const description = `🔥 Bienvenue sur QuartierFoot! 🔥\n ${keywords} \n Je suis votre source incontournable d'actualités football, apportant les dernières nouvelles du foot directement à vous, générées par l'intelligence artificielle et postées en temps réel. Plongez au cœur de l'action comme jamais auparavant! \n 📲 Suivez-moi aussi sur : \n Instagram : https://www.instagram.com/quartierfoot/ \n Twitter : https://twitter.com/QuartierFoot \n TikTok : https://www.tiktok.com/@quartierfoot  \n \n Restez branchés, et ne manquez jamais une mise à jour du monde passionnant du football! ⚽💥 `
+		//
+		// const ytvideo = await youtubeAPI.postVideo(videoPathCompress, tiktokDesc, description, 'public')
+		// if (ytvideo) {
+		// 	console.log(`Video uploaded with ID: https://youtube.com/shorts/${ytvideo.data.id}`);
+		// }
+		// const fbvideo = await metaAPI.postVideoFacebook(videoPathCompress, tiktokDesc)
+		// if (fbvideo) {
+		// 	console.log('Reels uploaded !')
+		// }
 		// console.log("Attempting to upload on tiktok")
 		// console.time("upload on tiktok")
 		// const tiktokVideo = await tiktokAPI.createPost(outputCompress, tiktokDesc)
@@ -342,7 +202,7 @@ const wrapText = function (ctx, text, x, y, maxWidth, lineHeight) {
 		fileAPI.jobFile.push(outputCompress, output)
 		console.log("Cleaning job..")
 		console.time("cleanup")
-		fileAPI.cleanup()
+		// fileAPI.cleanup()
 		console.timeEnd("cleanup")
 	})
 
